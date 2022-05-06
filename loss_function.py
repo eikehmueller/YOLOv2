@@ -102,7 +102,7 @@ class YOLOv2Loss(keras.losses.Loss):
           * t^{(h)}_{i,j,k} = y_pred(b,i,j,k,3)
 
         and denote the width and height of the k-th anchor box with w^{(a)}_k and h^{(a)}_k
-        (both are measured in units of the total image width/height). The the predicted bounding
+        (both are measured in units of the total image width/height). Then the predicted bounding
         box coordinates are encoded like this:
 
           * xc^{(pred)}_{i,j,k} = sigmoid(t^{(x)}_{i,j,k})
@@ -124,7 +124,7 @@ class YOLOv2Loss(keras.losses.Loss):
         # width and height of bounding box (need to multiply by anchor widths and heights)
         bbox_wh = tf.exp(y_pred[..., 2:4]) * np.reshape(
             self.anchor_wh,
-            (len(tf.shape(y_pred)) - 1) * (1,) + (y_pred.shape[-2], 2),
+            (len(tf.shape(y_pred)) - 2) * (1,) + (y_pred.shape[-2], 2),
         )
         bbox_pred = {
             "xc": tf.sigmoid(y_pred[..., 0]),

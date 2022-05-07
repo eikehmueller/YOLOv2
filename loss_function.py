@@ -161,7 +161,7 @@ class YOLOv2Loss(keras.losses.Loss):
         # ==== 3. no-object loss ====
         loss_noobj = (1.0 - confidence_true) * confidence_pred**2
         # ==== 4. class cross-entropy loss ====
-        loss_classes = confidence_true * tf.reduce_sum(
+        loss_classes = -confidence_true * tf.reduce_sum(
             classes_true * tf.math.log(classes_pred), axis=-1
         )
         # Construct total loss, summed over all dimensions (apart possibly from the

@@ -3,27 +3,84 @@ import tensorflow as tf
 from anchor_boxes import BestAnchorBoxFinder
 
 
-class DataGenerator(object):
-    def __init__(self, anchors, image_size=416, n_tiles=13, n_classes=80):
+class DataGeneratorFactory(object):
+    """Class for generating data in the tensorflow dataset format
+
+    Provides generator for pairs (X,y) of images and bounding box annotations. Here X is
+    a RGB image of shape (image_size,image_size,3) and y is a tensor of shape
+    (n_tiles,n_tiles,n_anchor,5+n_classes) such that:
+
+        * y(b,i,j,k,0:4): coordinates of bounding box associated with k-th
+                          anchor box in tile (i,j), encoded as decsribed below.
+        * y(b,i,j,k,4):   1 if anchor box k in tile (i,j) contains an object, 0 otherwise
+        * y(b,i,j,k,5+c): 1 if the object is of class c, 0 otherwise.
+
+    (see documentation of the bbox2targets() method below for more details).
+
+    The resulting dataset can then be used to loop over all images and corresponding
+    bounding box annotations (converted to targets) in the dataset.
+    """
+
+    def __init__(self, anchors, image_reader):
         """Create new instance
 
-        :arg image_size: Size of images to process
-        :arg n_tiles: number of tiles covering the image
-        :arg anchors: anchor boxes
+        The image_reader class is assumed to implement the following two methods:
+          * get_image_ids() to get the ids of all images
+          * read_image() to return an image together with its bounding box annotations
+
+        :arg anchors: list of anchor boxes
+        :arg image_reader: image reader instance.
         """
-        self.image_size = image_size
-        self.n_tiles = n_tiles
-        self.n_classes = n_classes
+        # image reader
+        self.image_reader = image_reader
+        self.image_ids = self.image_reader.get_image_ids()
+
+        # extract size information
+        self.image_size = self.image_reader.image_size
+        self.n_tiles = self.image_reader.n_tiles
+        self.n_classes = self.image_reader.n_classes
+
+        # set anchors and initialise the best anchor box finder, which is used
+        # to identify the optimal anchor box for each bounding box in an image
         self.anchors = anchors
         self.n_anchor = len(self.anchors)
         self.babf = BestAnchorBoxFinder(self.anchors)
-        # Extract widths and heights of anchor boxes into numpy arrays
+        # Extract widths and heights of anchor boxes into numpy arrays (the is required
+        # for scaling the data)
         self.anchor_wh = np.asarray(
             [
                 [anchor["width"] for anchor in self.anchors],
                 [anchor["height"] for anchor in self.anchors],
             ]
         )
+        # tensorflow dataset
+        self.dataset = tf.data.Dataset.from_generator(
+            self._generator,
+            output_signature=(
+                tf.TensorSpec(
+                    shape=(self.image_size, self.image_size, 3),
+                    dtype=tf.float32,
+                ),
+                tf.TensorSpec(
+                    shape=(
+                        self.n_tiles,
+                        self.n_tiles,
+                        self.n_anchor,
+                        5 + self.n_classes,
+                    ),
+                    dtype=tf.float32,
+                ),
+            ),
+        )
+
+    def _generator(self):
+        """Generate a new sample (X,y)"""
+        while True:
+            for image_id in self.image_ids:
+                annotated_image = self.image_reader.read_image(image_id)
+                yield annotated_image["image"], self.bboxes2target(
+                    annotated_image["bboxes"]
+                )
 
     def bboxes2target(self, bboxes):
         """Create a target for list of bounding boxes
@@ -42,7 +99,7 @@ class DataGenerator(object):
         Let i=(i_x,i_y) be the index of the tile and j be the anchor box. Then we have that:
 
         xc and yc are measured relative to the corner of the tile that contains the center
-        of the object and they are normalised to the tile size, i.e. xc, yc in [0,1].
+        of the object and they are normalised to the tile size, i.e. xc, yc are in [0,1].
 
           xc_{i,j} := y(i_x,i_y,j,0) is the x- coordinate of the center of the
                                        bounding box paired with the j-th anchor

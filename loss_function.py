@@ -203,7 +203,6 @@ class YOLOv2Loss(keras.losses.Loss):
                      {'xc':centre_x,'yc':centre_y,'width':width,'height':height}
         :arg bbox_2: Second bounding box, given as a dictionary in the same format
         """
-        zeros = tf.constant(shape=bbox_1["xc"].shape, value=0.0)
         # Convert to coordinates of four corners
         xmin_1 = bbox_1["xc"] - 0.5 * bbox_1["width"]
         ymin_1 = bbox_1["yc"] - 0.5 * bbox_1["height"]
@@ -216,10 +215,10 @@ class YOLOv2Loss(keras.losses.Loss):
         # Compute area of intersection
         area_intersection = tf.math.maximum(
             (tf.math.minimum(xmax_1, xmax_2) - tf.math.maximum(xmin_1, xmin_2)),
-            zeros,
+            0.0,
         ) * tf.math.maximum(
             (tf.math.minimum(ymax_1, ymax_2) - tf.math.maximum(ymin_1, ymin_2)),
-            zeros,
+            0.0,
         )
         # compute areas of individual bounding boxes
         area_1 = tf.multiply(bbox_1["width"], bbox_1["height"])

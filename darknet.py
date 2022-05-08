@@ -2,17 +2,7 @@
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.models import Sequential, Model
-from tensorflow.keras.layers import (
-    Reshape,
-    Conv2D,
-    Input,
-    MaxPooling2D,
-    BatchNormalization,
-    Lambda,
-    LeakyReLU,
-    concatenate,
-)
+from tensorflow import keras
 
 
 class Darknet19(object):
@@ -42,6 +32,7 @@ class Darknet19(object):
 
     @property
     def model(self):
+        """Return model property"""
         return self.__model
 
     def _build_model(self):
@@ -69,12 +60,14 @@ class Darknet19(object):
             {"features": 1024, "mask": (3, 3), "pool": False},  # layer 19
             {"features": 1024, "mask": (3, 3), "pool": False},  # layer 20
         ]
-        input_image = Input(shape=(self.image_size, self.image_size, 3), name="input")
+        input_image = keras.layers.Input(
+            shape=(self.image_size, self.image_size, 3), name="input"
+        )
         # ==== Layers 1 - 20 ====
         x = input_image
         for j, layer_spec in enumerate(layer_specs):
             layer_id = f"{j+1:02d}"
-            x = Conv2D(
+            x = keras.layers.Conv2D(
                 layer_spec["features"],
                 layer_spec["mask"],
                 strides=(1, 1),
@@ -82,50 +75,59 @@ class Darknet19(object):
                 name=f"conv_" + layer_id,
                 use_bias=False,
             )(x)
-            x = BatchNormalization(name=f"norm_" + layer_id)(x)
-            x = LeakyReLU(alpha=0.1, name="LReLU_" + layer_id)(x)
+            x = keras.layers.BatchNormalization(name=f"norm_" + layer_id)(x)
+            x = keras.layers.LeakyReLU(alpha=0.1, name="LReLU_" + layer_id)(x)
             # Save skip connection after layer 13, before max-pooling
             if j + 1 == 13:
                 skip_connection = x
             if layer_spec["pool"]:
-                x = MaxPooling2D(pool_size=(2, 2), name="maxpool_" + layer_id)(x)
+                x = keras.layers.MaxPooling2D(
+                    pool_size=(2, 2), name="maxpool_" + layer_id
+                )(x)
 
         # ==== Layer 21 ====
-        skip_connection = Conv2D(
+        skip_connection = keras.layers.Conv2D(
             64, (1, 1), strides=(1, 1), padding="same", name="conv_21", use_bias=False
         )(skip_connection)
-        skip_connection = BatchNormalization(name="norm_21")(skip_connection)
-        skip_connection = LeakyReLU(alpha=0.1, name="LReLu_21")(skip_connection)
-        skip_connection = Lambda(
+        skip_connection = keras.layers.BatchNormalization(name="norm_21")(
+            skip_connection
+        )
+        skip_connection = keras.layers.LeakyReLU(alpha=0.1, name="LReLu_21")(
+            skip_connection
+        )
+        skip_connection = keras.layers.Lambda(
             lambda z: tf.nn.space_to_depth(z, block_size=2), name="lambda_21"
         )(skip_connection)
-        x = concatenate([skip_connection, x])
+        x = keras.layers.concatenate([skip_connection, x])
         # ==== Layer 22 ====
-        x = Conv2D(
+        x = keras.layers.Conv2D(
             1024, (3, 3), strides=(1, 1), padding="same", name="conv_22", use_bias=False
         )(x)
-        x = BatchNormalization(name="norm_22")(x)
-        x = LeakyReLU(alpha=0.1, name="LReLU_22")(x)
+        x = keras.layers.BatchNormalization(name="norm_22")(x)
+        x = keras.layers.LeakyReLU(alpha=0.1, name="LReLU_22")(x)
         # ==== Layer 23 =====
-        x = Conv2D(
+        x = keras.layers.Conv2D(
             self.n_anchor * (4 + 1 + self.n_classes),
             (1, 1),
             strides=(1, 1),
             padding="same",
             name="conv_23",
         )(x)
-        output_layer = Reshape(
+        output_layer = keras.layers.Reshape(
             (self.grid_size, self.grid_size, self.n_anchor, 4 + 1 + self.n_classes)
         )(x)
-        if False:
-            true_boxes = Input(shape=(1, 1, 1, self.true_box_buffer, 4))
+        use_true_box_buffer = False
+        if use_true_box_buffer:
+            true_boxes = keras.layers.Input(shape=(1, 1, 1, self.true_box_buffer, 4))
             inputs = [input, true_boxes]
-            outputs = Lambda(lambda args: args[0])([output_layer, true_boxes])
+            outputs = keras.layers.Lambda(lambda args: args[0])(
+                [output_layer, true_boxes]
+            )
         else:
             inputs = input_image
             outputs = output_layer
         # Build model
-        self.__model = Model(inputs=inputs, outputs=outputs)
+        self.__model = keras.Model(inputs=inputs, outputs=outputs)
 
     def _set_weights(self, weight_file):
         """Read weights from disk and set weights of final convolutional to random values.

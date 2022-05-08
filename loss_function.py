@@ -39,7 +39,7 @@ class YOLOv2Loss(keras.losses.Loss):
         self,
         anchor_boxes,
         lambda_coord=1.0,
-        lambda_obj=1.0,
+        lambda_obj=5.0,
         lambda_noobj=1.0,
         lambda_classes=1.0,
     ):

@@ -43,6 +43,7 @@ class YOLOv2Loss(keras.losses.Loss):
         lambda_noobj=1.0,
         lambda_classes=1.0,
     ):
+        super().__init__()
         # Extract widths and heights of anchor boxes into numpy arrays
         self.anchor_wh = np.asarray(
             [

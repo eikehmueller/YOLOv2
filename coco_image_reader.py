@@ -51,7 +51,8 @@ class COCOImageReader(object):
     def get_image_ids(self, category_names=None):
         """Return the ids of all images in the dataset which belong to a certain category
 
-        :arg category_names: names of categories that should appear in the images
+        :arg category_names: names of categories that should appear in the images.
+                             If None, use any category.
         """
         # Check that categories are ok, i.e. they are a subset of all categories in the COCO dataset
         assert (category_names is None) or set(category_names).issubset(
@@ -62,6 +63,14 @@ class COCOImageReader(object):
         category_ids = self.coco.getCatIds(catNms=category_names)
         img_ids = self.coco.getImgIds(catIds=category_ids)
         return img_ids
+
+    def get_n_images(self, category_names=None):
+        """Get the number of images which belong to a certain category
+
+        :arg category_names: names of categories that should appear in the images.
+                             If None, use any category.
+        """
+        return len(self.get_image_ids(category_names))
 
     def read_image(self, img_id):
         """Read an image, resize it and return the resized image together with bbox annotations

@@ -1,3 +1,4 @@
+import random
 import numpy as np
 import tensorflow as tf
 from anchor_boxes import BestAnchorBoxFinder
@@ -21,7 +22,7 @@ class DataGeneratorFactory(object):
     bounding box annotations (converted to targets) in the dataset.
     """
 
-    def __init__(self, anchors, image_reader):
+    def __init__(self, anchors, image_reader, random_shuffle=False):
         """Create new instance
 
         The image_reader class is assumed to implement the following two methods:
@@ -30,6 +31,7 @@ class DataGeneratorFactory(object):
 
         :arg anchors: list of anchor boxes
         :arg image_reader: image reader instance.
+        :arg random_shuffle: randomly shuffle the image ids when iterating over the dataset
         """
         # image reader
         self.image_reader = image_reader
@@ -53,6 +55,7 @@ class DataGeneratorFactory(object):
                 [anchor["height"] for anchor in self.anchors],
             ]
         )
+        self.random_shuffle = random_shuffle
         # tensorflow dataset
         self.dataset = tf.data.Dataset.from_generator(
             self._generator,
@@ -75,8 +78,11 @@ class DataGeneratorFactory(object):
 
     def _generator(self):
         """Generate a new sample (X,y)"""
+        ids = list(self.image_ids)
         while True:
-            for image_id in self.image_ids:
+            if self.random_shuffle:
+                random.shuffle(ids)
+            for image_id in ids:
                 annotated_image = self.image_reader.read_image(image_id)
                 yield annotated_image["image"], self.bboxes2target(
                     annotated_image["bboxes"]

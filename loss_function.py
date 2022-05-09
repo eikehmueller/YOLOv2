@@ -127,10 +127,7 @@ class YOLOv2Loss(keras.losses.Loss):
         """
         y_shape = y_true.get_shape().as_list()
         # number of total boxes N_total = n_tiles * n_tiles * n_anchors
-        N_total = tf.constant(
-            np.prod(y_shape[-4:-1]),
-            dtype=y_true.dtype,
-        )
+        N_total = np.prod(y_shape[-4:-1])
         # predicted bounding box
         # width and height of bounding box (need to multiply by anchor widths and heights)
         bbox_wh = tf.exp(y_pred[..., 2:4]) * np.reshape(
@@ -162,15 +159,11 @@ class YOLOv2Loss(keras.losses.Loss):
         N_obj = tf.reduce_sum(confidence_true, axis=(-4, -3, -2), keepdims=True)
 
         # ==== 1. coordinate loss ====
-        loss_coord = (
-            confidence_true
-            * (
-                (bbox_pred["xc"] - bbox_true["xc"]) ** 2
-                + (bbox_pred["yc"] - bbox_true["yc"]) ** 2
-                + (tf.sqrt(bbox_pred["width"]) - tf.sqrt(bbox_true["width"])) ** 2
-                + (tf.sqrt(bbox_pred["height"]) - tf.sqrt(bbox_true["height"])) ** 2
-            )
-            / N_obj
+        loss_coord = tf.math.divide_no_nan(confidence_true, N_obj) * (
+            (bbox_pred["xc"] - bbox_true["xc"]) ** 2
+            + (bbox_pred["yc"] - bbox_true["yc"]) ** 2
+            + (tf.sqrt(bbox_pred["width"]) - tf.sqrt(bbox_true["width"])) ** 2
+            + (tf.sqrt(bbox_pred["height"]) - tf.sqrt(bbox_true["height"])) ** 2
         )
         # ==== 2. object loss ====
         iou = self._IoU(bbox_true, bbox_pred)
@@ -180,10 +173,8 @@ class YOLOv2Loss(keras.losses.Loss):
         # ==== 3. no-object loss ====
         loss_noobj = (1.0 - confidence_true) * confidence_pred**2 / N_total
         # ==== 4. class cross-entropy loss ====
-        loss_classes = (
-            -confidence_true
-            * tf.reduce_sum(classes_true * tf.math.log(classes_pred), axis=-1)
-            / N_obj
+        loss_classes = -tf.math.divide_no_nan(confidence_true, N_obj) * tf.reduce_sum(
+            classes_true * tf.math.log(classes_pred), axis=-1
         )
         # Construct total loss, summed over all dimensions (apart possibly from the
         # batch dimension)

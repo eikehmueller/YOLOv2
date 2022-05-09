@@ -155,9 +155,9 @@ class YOLOv2Loss(keras.losses.Loss):
             "height": y_true[..., 3],
         }
         # true probability that anchor box contains object (=> is either 0 or 1)
-        confidence_true = y_pred[..., 4]
+        confidence_true = y_true[..., 4]
         # true class probabilities
-        classes_true = y_pred[..., 5:]
+        classes_true = y_true[..., 5:]
         # number of bounding boxes with objects
         N_obj = tf.reduce_sum(confidence_true, axis=(-4, -3, -2), keepdims=True)
 

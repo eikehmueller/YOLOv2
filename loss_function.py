@@ -18,15 +18,19 @@ class YOLOv2Loss(keras.losses.Loss):
     where
 
     loss^{(coord)}_{i,j,k} = ( (xc^{(pred)}_{i,j,k} - xc^{(true)}_{i,j,k})^2
-                              + (yc^{(pred)}_{i,j,k} - yc^{(true)}_{i,j,k})^2
-                              + (sqrt(w^{(pred)}_{i,j,k}) - sqrt(w^{(true)}_{i,j,k}))^2
-                              + (sqrt(h^{(pred)}_{i,j,k}) - sqrt(h^{(true)}_{i,j,k}))^2 )
-                           * C^{(true)}_{i,j,k}
+                             + (yc^{(pred)}_{i,j,k} - yc^{(true)}_{i,j,k})^2
+                             + (sqrt(w^{(pred)}_{i,j,k}) - sqrt(w^{(true)}_{i,j,k}))^2
+                             + (sqrt(h^{(pred)}_{i,j,k}) - sqrt(h^{(true)}_{i,j,k}))^2 )
+                           * C^{(true)}_{i,j,k} / N_{obj}
     loss^{(obj)}_{i,j,k} = ( C^{(true)}_{i,j,k} * IoU(bbox^{(true)},bbox^{(true)})
-                             - C^{(pred)}_{i,j,k} )^2 * C^{(true)}_{i,j,k}
-    loss^{(noobj)}_{i,j,k} = ( C^{(pred)}_{i,j,k} )^2 * (1 - C^{(true)}_{i,j,k})
-    loss^{(classes)}_{i,j,k} = - C^{(true)}_{i,j,k} * sum_{classes c} [ p^{(true)}_{i,j,k}(c)
-                                                          * log ( p^{(true)}_{i,j,k}(c) ) ]
+                             - C^{(pred)}_{i,j,k} )^2 * C^{(true)}_{i,j,k} / N
+    loss^{(noobj)}_{i,j,k} = ( C^{(pred)}_{i,j,k} )^2 * (1 - C^{(true)}_{i,j,k}) / N
+    loss^{(classes)}_{i,j,k} = - C^{(true)}_{i,j,k} / N_{obj}
+                               * sum_{classes c} [ p^{(true)}_{i,j,k}(c)
+                               * log ( p^{(true)}_{i,j,k}(c) ) ]
+
+    Here N is the total number of tiles and N_{obj} = sum_{i,j,k} C^{(true)}_{i,j,k} is the
+    total number of ground truth bounding boxes.
 
     :arg anchor_boxes: coordinates of anchor boxes
     :arg lambda_coord: scaling factor for coordinate loss
@@ -121,11 +125,17 @@ class YOLOv2Loss(keras.losses.Loss):
         :arg y_true: true target, shape (batchsize,n_tiles,n_tiles,n_anchor,5+n_classes)
         :arg y_pred: predicted target, shape (batchsize,n_tiles,n_tiles,n_anchor,5+n_classes)
         """
+        y_shape = y_true.get_shape().as_list()
+        # number of total boxes N_total = n_tiles * n_tiles * n_anchors
+        N_total = tf.constant(
+            np.prod(y_shape[-4:-1]),
+            dtype=y_true.dtype,
+        )
         # predicted bounding box
         # width and height of bounding box (need to multiply by anchor widths and heights)
         bbox_wh = tf.exp(y_pred[..., 2:4]) * np.reshape(
             self.anchor_wh,
-            (len(tf.shape(y_pred)) - 2) * (1,) + (y_pred.shape[-2], 2),
+            (len(y_shape) - 2) * (1,) + (y_shape[-2], 2),
         )
         bbox_pred = {
             "xc": tf.sigmoid(y_pred[..., 0]),
@@ -148,22 +158,32 @@ class YOLOv2Loss(keras.losses.Loss):
         confidence_true = y_pred[..., 4]
         # true class probabilities
         classes_true = y_pred[..., 5:]
+        # number of bounding boxes with objects
+        N_obj = tf.reduce_sum(confidence_true, axis=(-4, -3, -2), keepdims=True)
 
         # ==== 1. coordinate loss ====
-        loss_coord = confidence_true * (
-            (bbox_pred["xc"] - bbox_true["xc"]) ** 2
-            + (bbox_pred["yc"] - bbox_true["yc"]) ** 2
-            + (tf.sqrt(bbox_pred["width"]) - tf.sqrt(bbox_true["width"])) ** 2
-            + (tf.sqrt(bbox_pred["height"]) - tf.sqrt(bbox_true["height"])) ** 2
+        loss_coord = (
+            confidence_true
+            * (
+                (bbox_pred["xc"] - bbox_true["xc"]) ** 2
+                + (bbox_pred["yc"] - bbox_true["yc"]) ** 2
+                + (tf.sqrt(bbox_pred["width"]) - tf.sqrt(bbox_true["width"])) ** 2
+                + (tf.sqrt(bbox_pred["height"]) - tf.sqrt(bbox_true["height"])) ** 2
+            )
+            / N_obj
         )
         # ==== 2. object loss ====
         iou = self._IoU(bbox_true, bbox_pred)
-        loss_obj = confidence_true * (confidence_pred - iou * confidence_true) ** 2
+        loss_obj = (
+            confidence_true * (confidence_pred - iou * confidence_true) ** 2 / N_total
+        )
         # ==== 3. no-object loss ====
-        loss_noobj = (1.0 - confidence_true) * confidence_pred**2
+        loss_noobj = (1.0 - confidence_true) * confidence_pred**2 / N_total
         # ==== 4. class cross-entropy loss ====
-        loss_classes = -confidence_true * tf.reduce_sum(
-            classes_true * tf.math.log(classes_pred), axis=-1
+        loss_classes = (
+            -confidence_true
+            * tf.reduce_sum(classes_true * tf.math.log(classes_pred), axis=-1)
+            / N_obj
         )
         # Construct total loss, summed over all dimensions (apart possibly from the
         # batch dimension)

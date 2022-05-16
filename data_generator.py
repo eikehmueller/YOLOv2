@@ -4,6 +4,16 @@ import tensorflow as tf
 from anchor_boxes import BestAnchorBoxFinder
 
 
+def inv_sigmoid(y):
+    """Inverse of sigmoid function
+
+    Auxilliary function to compute x, given y = sigma(x) = 1/(1+exp(-x))
+
+    :arg y: Value of sigma function
+    """
+    return np.log(y) - np.log(1.0 - y)
+
+
 class DataGeneratorFactory(object):
     """Class for generating data in the tensorflow dataset format
 
@@ -22,7 +32,7 @@ class DataGeneratorFactory(object):
     bounding box annotations (converted to targets) in the dataset.
     """
 
-    def __init__(self, anchors, image_reader, random_shuffle=False):
+    def __init__(self, anchors, image_reader, random_shuffle=False, max_images=None):
         """Create new instance
 
         The image_reader class is assumed to implement the following two methods:
@@ -32,6 +42,7 @@ class DataGeneratorFactory(object):
         :arg anchors: list of anchor boxes
         :arg image_reader: image reader instance.
         :arg random_shuffle: randomly shuffle the image ids when iterating over the dataset
+        :arg max_images: limit the number of images that we iterate over (for testing)
         """
         # image reader
         self.image_reader = image_reader
@@ -56,6 +67,10 @@ class DataGeneratorFactory(object):
             ]
         )
         self.random_shuffle = random_shuffle
+        if max_images:
+            self.max_images = max_images
+        else:
+            self.max_images = self.image_reader.get_n_images()
         # tensorflow dataset
         self.dataset = tf.data.Dataset.from_generator(
             self._generator,
@@ -82,7 +97,7 @@ class DataGeneratorFactory(object):
         while True:
             if self.random_shuffle:
                 random.shuffle(ids)
-            for image_id in ids:
+            for image_id in ids[: self.max_images]:
                 annotated_image = self.image_reader.read_image(image_id)
                 yield annotated_image["image"], self.bboxes2target(
                     annotated_image["bboxes"]
@@ -217,3 +232,72 @@ class DataGeneratorFactory(object):
             for i, j, k in np.asarray(np.where(confidence_pred > threshold)).transpose()
         ]
         return bboxes
+
+    def bboxes2prediction(self, bboxes, noise=0.0):
+        """Inverse of method prediction2bboxes
+
+        Takes a set of bounding boxes and returns a prediction, i.e. a corresponding tensor
+        of shape (n_tiles,n_tiles,n_anchor,5+n_classes). This prediction can be noisy in
+        the sense that random noise is added to the tensor after the conversion.
+
+        All bounding box coordinates are given in absolute coordinates, i.e. they are not
+        scaled by image width or height.
+
+        This method is mainly used for debugging.
+
+        :arg bboxes: List of bounding box dictionaries of the form
+                     {"class":class of object in box,
+                      "xc":centre in x-direction,
+                      "yc":centre in y-direction,
+                      "width":width,
+                      "height":height}
+        :arg noise: width or normal distribution of random noise that is added to the
+                    prediction tensor
+        """
+        tile_size = self.image_size // self.n_tiles
+        tiled_annotations = {}
+        for bbox in bboxes:
+            # Work out the tile that contains the bbox centre
+            tile_x = bbox["xc"] // tile_size
+            tile_y = bbox["yc"] // tile_size
+            tile_id = (tile_x, tile_y)
+            if tile_id in tiled_annotations.keys():
+                tiled_annotations[tile_id].append(bbox)
+            else:
+                tiled_annotations[tile_id] = [
+                    bbox,
+                ]
+        # Now populate the prediction tensor y
+        y_pred = np.zeros(
+            (self.n_tiles, self.n_tiles, self.n_anchor, 5 + self.n_classes)
+        )
+        # set logits of no-objects to -1
+        y_pred[..., 4] = -1.0
+        for tile_id, bboxes in tiled_annotations.items():
+            tile_x, tile_y = tile_id
+            # Match bounding box to the anchor with the best overlap
+            # j = anchor box index
+            # k = bounding box index
+            anchor_ind, bbox_ind = self.babf.match(bboxes)
+            for j, k in zip(anchor_ind, bbox_ind):
+                xc = bboxes[k]["xc"] / tile_size - tile_x
+                yc = bboxes[k]["yc"] / tile_size - tile_y
+                y_pred[tile_x, tile_y, j, 0] = inv_sigmoid(xc)
+                y_pred[tile_x, tile_y, j, 1] = inv_sigmoid(yc)
+                y_pred[tile_x, tile_y, j, 2] = np.log(
+                    bboxes[k]["width"] / self.anchors[j]["width"]
+                )
+                y_pred[tile_x, tile_y, j, 3] = np.log(
+                    bboxes[k]["height"] / self.anchors[j]["height"]
+                )
+                # arbitrarily set the logit of the prediction to 1
+                y_pred[tile_x, tile_y, j, 4] = 1.0
+                # arbitrarily set the logit of the true class to 10.
+                # (which means that the true class is 22000x more likely than any
+                # other class)
+                y_pred[tile_x, tile_y, j, 5 + bboxes[k]["class"]] = 10.0
+        y_pred[...] += np.random.normal(
+            scale=noise,
+            size=(self.n_tiles, self.n_tiles, self.n_anchor, 5 + self.n_classes),
+        )
+        return y_pred

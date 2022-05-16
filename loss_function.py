@@ -156,7 +156,7 @@ class YOLOv2Loss(keras.losses.Loss):
         # true class probabilities
         classes_true = y_true[..., 5:]
         # number of bounding boxes with objects
-        N_obj = tf.reduce_sum(confidence_true, axis=(-4, -3, -2), keepdims=True)
+        N_obj = tf.reduce_sum(confidence_true, axis=(-3, -2, -1), keepdims=True)
 
         # ==== 1. coordinate loss ====
         loss_coord = tf.math.divide_no_nan(confidence_true, N_obj) * (

@@ -181,10 +181,17 @@ class COCOImageReader(ImageReader):
         :arg img_id: id of image to process
         """
         img = self.coco.loadImgs([img_id])[0]
-        image = cv2.resize(
-            cv2.imread(self.image_dir + "/" + img["file_name"]),
-            (self.image_size, self.image_size),
+        image = (
+            np.asarray(
+                cv2.resize(
+                    cv2.imread(self.image_dir + "/" + img["file_name"]),
+                    (self.image_size, self.image_size),
+                ),
+                dtype=np.float32,
+            )
+            / 255.0
         )
+        image = image[:, :, ::-1]
         ann_ids = self.coco.getAnnIds(imgIds=[img_id])
         annotations = self.coco.loadAnns(ann_ids)
         bboxes = []
@@ -312,10 +319,17 @@ class PascalVOCImageReader(ImageReader):
         image_width = annotation["image_width"]
         image_height = annotation["image_height"]
         filename = self.data_dir + "/JPEGImages/" + annotation["image_filename"]
-        image = cv2.resize(
-            cv2.imread(filename),
-            (self.image_size, self.image_size),
+        image = (
+            np.asarray(
+                cv2.resize(
+                    cv2.imread(filename),
+                    (self.image_size, self.image_size),
+                ),
+                dtype=np.float32,
+            )
+            / 255.0
         )
+        image = image[:, :, ::-1]
         bboxes = []
         for annotation in annotation["raw_bboxes"]:
             class_id = self.category_name_class_map[annotation["category_name"]]

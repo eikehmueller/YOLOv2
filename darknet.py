@@ -72,17 +72,17 @@ class Darknet19(object):
                 layer_spec["mask"],
                 strides=(1, 1),
                 padding="same",
-                name=f"conv_" + layer_id,
+                name=f"conv_{layer_id}",
                 use_bias=False,
             )(x)
-            x = keras.layers.BatchNormalization(name=f"norm_" + layer_id)(x)
-            x = keras.layers.LeakyReLU(alpha=0.1, name="LReLU_" + layer_id)(x)
+            x = keras.layers.BatchNormalization(name=f"norm_{layer_id}")(x)
+            x = keras.layers.LeakyReLU(alpha=0.1, name=f"LReLU_{layer_id}")(x)
             # Save skip connection after layer 13, before max-pooling
             if j + 1 == 13:
                 skip_connection = x
             if layer_spec["pool"]:
                 x = keras.layers.MaxPooling2D(
-                    pool_size=(2, 2), name="maxpool_" + layer_id
+                    pool_size=(2, 2), name=f"maxpool_{layer_id}"
                 )(x)
 
         # ==== Layer 21 ====

@@ -171,7 +171,8 @@ class Darknet19(object):
                 for weights in norm_layer.get_weights():
                     size = np.prod(weights.shape)
                     new_weights.append(weight_reader.get(size))
-                norm_layer.set_weights(new_weights)
+                beta, gamma, mean, var = new_weights
+                norm_layer.set_weights([gamma, beta, mean, var])
 
             # --- convolutional layer ---
             conv_layer = self.model.get_layer(f"conv_{j:02d}")
@@ -187,4 +188,13 @@ class Darknet19(object):
             kernel = kernel.transpose([2, 3, 1, 0])
             new_weights = [kernel, bias] if len(weights) > 1 else [kernel]
             conv_layer.set_weights(new_weights)
-        # SET WEIGHTS OF FINAL CONVOLUTIONAL LAYER TO RANDOM VALUES?
+        # set weights of final convolutional layer to random values
+        layer = self.model.get_layer(f"conv_23")
+        weights = layer.get_weights()
+        new_kernel = np.random.normal(size=weights[0].shape) / (
+            self.grid_size * self.grid_size
+        )
+        new_bias = np.random.normal(size=weights[1].shape) / (
+            self.grid_size * self.grid_size
+        )
+        layer.set_weights([new_kernel, new_bias])

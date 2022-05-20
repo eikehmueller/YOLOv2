@@ -215,8 +215,8 @@ class DataGeneratorFactory(object):
         offsets_y = np.reshape(offsets, (1, self.n_tiles, 1))
         xc_pred = (tf.sigmoid(y_pred[..., 0]) + offsets_x) * tile_size
         yc_pred = (tf.sigmoid(y_pred[..., 1]) + offsets_y) * tile_size
-        width_pred = bbox_wh[..., 0]
-        height_pred = bbox_wh[..., 1]
+        width_pred = self.image_size * bbox_wh[..., 0]
+        height_pred = self.image_size * bbox_wh[..., 1]
         class_pred = tf.math.argmax(tf.nn.softmax(y_pred[..., 5:], axis=-1), axis=-1)
         # predicted confidence
         confidence_pred = np.asarray(tf.sigmoid(y_pred[..., 4]))

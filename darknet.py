@@ -189,7 +189,7 @@ class Darknet19(object):
             new_weights = [kernel, bias] if len(weights) > 1 else [kernel]
             conv_layer.set_weights(new_weights)
         # set weights of final convolutional layer to random values
-        layer = self.model.get_layer(f"conv_23")
+        layer = self.model.get_layer("conv_23")
         weights = layer.get_weights()
         new_kernel = np.random.normal(size=weights[0].shape) / (
             self.grid_size * self.grid_size

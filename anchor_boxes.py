@@ -171,7 +171,7 @@ def generate_2d_data(n_centroid, n_data, width=0.1):
     return data, assignments
 
 
-def plot_kmeans_data(data, assignments, centroids, label_x="x", label_y="y"):
+def plot_kmeans_data(data, assignments, centroids, ax, label_x="x", label_y="y"):
     """Plot k-means data together with assignments
 
     Visualises the data, coloured by centroid assignments and the centroids
@@ -180,17 +180,17 @@ def plot_kmeans_data(data, assignments, centroids, label_x="x", label_y="y"):
     :arg data:array of shape (n_data, 2) containing the data points
     :arg assignments: array of length n_data, assignment of data to the centroids
     :arg centroids: array of shape (n_centroid, 2), containing the centrods
+    :arg ax: matplotlib axis object to plot to
     :arg label_x: label for horizontal axis
     :arg label_y: label for vertical axis
     """
-    plt.figure(figsize=(10, 10))
     for j in range(max(assignments) + 1):
         masked_data = data[assignments == j]
         X = masked_data[:, 0]
         Y = masked_data[:, 1]
-        plt.scatter(X, Y, marker=".")
+        ax.scatter(X, Y, marker=".")
     for centroid in centroids:
-        plt.plot(
+        ax.plot(
             centroid[0],
             centroid[1],
             linewidth=0,
@@ -199,7 +199,5 @@ def plot_kmeans_data(data, assignments, centroids, label_x="x", label_y="y"):
             markeredgewidth=2,
             color="black",
         )
-    ax = plt.gca()
     ax.set_xlabel(label_x)
     ax.set_ylabel(label_y)
-    plt.show()

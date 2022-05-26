@@ -271,8 +271,8 @@ class DataGeneratorFactory(object):
         y_pred = np.zeros(
             (self.n_tiles, self.n_tiles, self.n_anchor, 5 + self.n_classes)
         )
-        # set logits of no-objects to -1
-        y_pred[..., 4] = -1.0
+        # set logits of no-objects to -100
+        y_pred[..., 4] = -100.0
         for tile_id, bboxes in tiled_annotations.items():
             tile_x, tile_y = tile_id
             # Match bounding box to the anchor with the best overlap
@@ -290,8 +290,8 @@ class DataGeneratorFactory(object):
                 y_pred[tile_x, tile_y, j, 3] = np.log(
                     bboxes[k]["height"] / (self.anchors[j]["height"] * self.image_size)
                 )
-                # arbitrarily set the logit of the prediction to 1
-                y_pred[tile_x, tile_y, j, 4] = 1.0
+                # arbitrarily set the logit of the prediction to 100
+                y_pred[tile_x, tile_y, j, 4] = 100.0
                 # arbitrarily set the logit of the true class to 10.
                 # (which means that the true class is 22000x more likely than any
                 # other class)

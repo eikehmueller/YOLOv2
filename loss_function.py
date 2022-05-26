@@ -54,7 +54,7 @@ class YOLOv2Loss(keras.losses.Loss):
                 [anchor["width"] for anchor in anchor_boxes],
                 [anchor["height"] for anchor in anchor_boxes],
             ]
-        )
+        ).T
         self.lambda_coord = lambda_coord
         self.lambda_obj = lambda_obj
         self.lambda_noobj = lambda_noobj

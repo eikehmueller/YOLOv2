@@ -100,6 +100,21 @@ class KMeans(object):
             print(
                 f"WARNING: Lloyds algorithm failed to converge in {maxiter} iterations"
             )
+        # Sort anchor boxes by size (and adjust the assignments accordingly)
+        # Construct sorted list of centroids with indices ((width_j,height_j),j)
+        sorted_cj = sorted(
+            [(centroid, j) for j, centroid in enumerate(centroids)],
+            key=lambda x: x[0][0] * x[0][1],  # sort by anchor box size
+        )
+        # extract sorted list of centroids
+        centroids = np.asarray([x[0] for x in sorted_cj])
+        # extract corresponding permutation
+        inv_perm = [x[1] for x in sorted_cj]
+        perm = list(inv_perm)
+        for j in range(self.n_centroid):
+            perm[inv_perm[j]] = j
+        # rearrange assignments according to permutation
+        assignments = np.asarray([perm[x] for x in assignments])
         return assignments, centroids
 
 

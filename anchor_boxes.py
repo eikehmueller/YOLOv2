@@ -68,6 +68,7 @@ class KMeans(object):
         :arg data: array with data
         :arg maxiter: maximal number of iterations
         """
+        np.random.seed(23627617)
         n_data, dim = data.shape
         # Centroids in d-dimensional space
         centroids = np.zeros((self.n_centroid, dim))

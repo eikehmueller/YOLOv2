@@ -90,11 +90,11 @@ class YOLOv2Loss(keras.losses.Loss):
             is the y-coordinate of the centre of the bounding box, measured from the corner of
             tile (i,j) and in units of the tile size. Hence 0 <= yc_{i,j,k} <= 1.
           * w^{(true)}_{i,j,k} = y_true(b,i,j,k,2)
-            is the width of the true bounding box, measured in units of the total image width.
-            Hence 0 <= w_{i,j,k} <= 1.
+            is the width of the true bounding box, measured in units of the tilde width.
+            Hence 0 <= w_{i,j,k} <= n_tiles.
           * h^{(true)}_{i,j,k} = y_true(b,i,j,k,3)
-            is the height of the true bounding box, measured in units of the total image height.
-            Hence 0 <= h_{i,j,k} <= 1.
+            is the height of the true bounding box, measured in units of the tile height.
+            Hence 0 <= h_{i,j,k} <= n_tiles.
 
         We also write p^{(true)}_{i,j,k}(c) = y_true(b,i,j,k,5+c) for the true probability and
         C^{(true)}_{i,j,k} = y_true(b,i,j,k,4) for the true confidence.
@@ -107,7 +107,7 @@ class YOLOv2Loss(keras.losses.Loss):
           * t^{(h)}_{i,j,k} = y_pred(b,i,j,k,3)
 
         and denote the width and height of the k-th anchor box with w^{(a)}_k and h^{(a)}_k
-        (both are measured in units of the total image width/height). Then the predicted bounding
+        (both are measured in units of the tile width/height). Then the predicted bounding
         box coordinates are encoded like this:
 
           * xc^{(pred)}_{i,j,k} = sigmoid(t^{(x)}_{i,j,k})
@@ -128,11 +128,17 @@ class YOLOv2Loss(keras.losses.Loss):
         y_shape = y_true.get_shape().as_list()
         # number of total boxes N_total = n_tiles * n_tiles * n_anchors
         N_total = np.prod(y_shape[-4:-1])
+        n_tiles = y_shape[-4]
         # predicted bounding box
-        # width and height of bounding box (need to multiply by anchor widths and heights)
-        bbox_wh = tf.exp(y_pred[..., 2:4]) * np.reshape(
-            self.anchor_wh,
-            (len(y_shape) - 2) * (1,) + (y_shape[-2], 2),
+        # width and height of bounding box (need to multiply by anchor widths and heights and by
+        # number of tiles to convert to units of tile width/height)
+        bbox_wh = (
+            n_tiles
+            * tf.exp(y_pred[..., 2:4])
+            * np.reshape(
+                self.anchor_wh,
+                (len(y_shape) - 2) * (1,) + (y_shape[-2], 2),
+            )
         )
         bbox_pred = {
             "xc": tf.sigmoid(y_pred[..., 0]),

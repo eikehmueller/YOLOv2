@@ -121,6 +121,7 @@ class DataGeneratorFactory(object):
 
         xc and yc are measured relative to the corner of the tile that contains the center
         of the object and they are normalised to the tile size, i.e. xc, yc are in [0,1].
+        The width and height are measured in units of the tile size also.
 
           xc_{i,j} := y(i_x,i_y,j,0) is the x- coordinate of the center of the
                                        bounding box paired with the j-th anchor
@@ -164,8 +165,12 @@ class DataGeneratorFactory(object):
                 yc = bboxes[k]["yc"] / tile_size - tile_y
                 y_target[tile_x, tile_y, j, 0] = xc
                 y_target[tile_x, tile_y, j, 1] = yc
-                y_target[tile_x, tile_y, j, 2] = bboxes[k]["width"] / self.image_size
-                y_target[tile_x, tile_y, j, 3] = bboxes[k]["height"] / self.image_size
+                y_target[tile_x, tile_y, j, 2] = (
+                    bboxes[k]["width"] / self.image_size * self.n_tiles
+                )
+                y_target[tile_x, tile_y, j, 3] = (
+                    bboxes[k]["height"] / self.image_size * self.n_tiles
+                )
                 y_target[tile_x, tile_y, j, 4] = 1
                 y_target[tile_x, tile_y, j, 5 + bboxes[k]["class"]] = 1
         return y_target
@@ -182,7 +187,7 @@ class DataGeneratorFactory(object):
           * t^{(h)}_{i,j,k} = y_pred(i,j,k,3)
 
         and denote the width and height of the k-th anchor box with w^{(a)}_k and h^{(a)}_k
-        (both are measured in units of the total image width/height). Then the bounding
+        (both are measured in units of the tile width/height). Then the bounding
         box coordinates are encoded like this:
 
           * xc^{(pred)}_{i,j,k} = (sigmoid(t^{(x)}_{i,j,k}) + i) * tile_size

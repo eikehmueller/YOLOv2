@@ -65,7 +65,7 @@ class DataGeneratorFactory(object):
                 [anchor["width"] for anchor in self.anchors],
                 [anchor["height"] for anchor in self.anchors],
             ]
-        )
+        ).T
         self.random_shuffle = random_shuffle
         if max_images:
             self.max_images = max_images

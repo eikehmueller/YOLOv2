@@ -285,10 +285,10 @@ class DataGeneratorFactory(object):
                 y_pred[tile_x, tile_y, j, 0] = inv_sigmoid(xc)
                 y_pred[tile_x, tile_y, j, 1] = inv_sigmoid(yc)
                 y_pred[tile_x, tile_y, j, 2] = np.log(
-                    bboxes[k]["width"] / self.anchors[j]["width"]
+                    bboxes[k]["width"] / (self.anchors[j]["width"] * self.image_size)
                 )
                 y_pred[tile_x, tile_y, j, 3] = np.log(
-                    bboxes[k]["height"] / self.anchors[j]["height"]
+                    bboxes[k]["height"] / (self.anchors[j]["height"] * self.image_size)
                 )
                 # arbitrarily set the logit of the prediction to 1
                 y_pred[tile_x, tile_y, j, 4] = 1.0

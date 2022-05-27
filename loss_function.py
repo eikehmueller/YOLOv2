@@ -1,4 +1,10 @@
-"""YOLOv2 loss function"""
+"""YOLOv2 loss function
+
+The loss function implemented here is based on the discussion in Yumi's blog
+https://fairyonice.github.io/Part_4_Object_Detection_with_Yolo_using_VOC_2012_data_loss.html,
+which is in turn follows the implementation by experiencor
+https://github.com/experiencor/keras-yolo2/blob/master/Yolo%20Step-by-Step.ipynb.
+"""
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
@@ -22,21 +28,31 @@ class YOLOv2Loss(keras.losses.Loss):
                              + (sqrt(w^{(pred)}_{i,j,k}) - sqrt(w^{(true)}_{i,j,k}))^2
                              + (sqrt(h^{(pred)}_{i,j,k}) - sqrt(h^{(true)}_{i,j,k}))^2 )
                            * C^{(true)}_{i,j,k} / N_{obj}
-    loss^{(obj)}_{i,j,k} = ( C^{(true)}_{i,j,k} * IoU(bbox^{(true)},bbox^{(true)})
-                             - C^{(pred)}_{i,j,k} )^2 * C^{(true)}_{i,j,k} / N
-    loss^{(noobj)}_{i,j,k} = ( C^{(pred)}_{i,j,k} )^2 * (1 - C^{(true)}_{i,j,k}) / N
+    loss^{(obj)}_{i,j,k} = ( C^{(true)}_{i,j,k} * IoU(bbox^{(true)}_{i,j,k},bbox^{(pred)}_{i,j.k})
+                             - C^{(pred)}_{i,j,k} )^2 * C^{(true)}_{i,j,k} / N_{conf}
+    loss^{(noobj)}_{i,j,k} = ( C^{(noobj)}_{i,j,k} )^2 * (1 - C^{(true)}_{i,j,k}) / N_{conf}
     loss^{(classes)}_{i,j,k} = - C^{(true)}_{i,j,k} / N_{obj}
                                * sum_{classes c} [ p^{(true)}_{i,j,k}(c)
                                * log ( p^{(true)}_{i,j,k}(c) ) ]
 
     Here N is the total number of tiles and N_{obj} = sum_{i,j,k} C^{(true)}_{i,j,k} is the
     total number of ground truth bounding boxes.
+    C^{(noobj)}_{i,j,k} is constructed as follows:
+
+    C^{(noobj)}_{i,j,k} = 1 if C^{(true)}_{i,j,k} = 0 AND
+                    max_{i',j',k'} IoU(bbox^{(true)}_{i',j',k'},bbox^{(pred)}_{i,j.k}) < 0.6
+    C^{(noonj)}_{i,j,k} = 0 otherwise.
+
+    Further, N_{conf} = sum_{i,j,k} C^{(noobj)}_{i,j,k}.
 
     :arg anchor_boxes: coordinates of anchor boxes
     :arg lambda_coord: scaling factor for coordinate loss
     :arg lambda_obj: scaling factor for object loss
     :arg lambda_noobj: scaling factor for no-object loss
     :arg lambda_classes: scaling factor for classes loss
+    :arg bbox_cachesize: maximal number of true bounding boxes that are stored in
+                         compressed form to compute the IoU between all predicted and
+                         ground truth bounding boxes in loss^{(noobj)}_{i,j,k}
     """
 
     def __init__(
@@ -46,19 +62,25 @@ class YOLOv2Loss(keras.losses.Loss):
         lambda_obj=5.0,
         lambda_noobj=1.0,
         lambda_classes=1.0,
+        bbox_cachesize=16,
     ):
         super().__init__()
         # Extract widths and heights of anchor boxes into numpy arrays
-        self.anchor_wh = np.asarray(
-            [
-                [anchor["width"] for anchor in anchor_boxes],
-                [anchor["height"] for anchor in anchor_boxes],
-            ]
-        ).T
+        n_anchors = len(anchor_boxes)
+        self.anchor_wh = np.reshape(
+            np.asarray(
+                [
+                    [anchor["width"] for anchor in anchor_boxes],
+                    [anchor["height"] for anchor in anchor_boxes],
+                ]
+            ).T,
+            (1, 1, 1, n_anchors, 2),
+        )
         self.lambda_coord = lambda_coord
         self.lambda_obj = lambda_obj
         self.lambda_noobj = lambda_noobj
         self.lambda_classes = lambda_classes
+        self.bbox_cachesize = bbox_cachesize
 
     def call(self, y_true, y_pred):
         """Evaluate loss function
@@ -125,21 +147,19 @@ class YOLOv2Loss(keras.losses.Loss):
         :arg y_true: true target, shape (batchsize,n_tiles,n_tiles,n_anchor,5+n_classes)
         :arg y_pred: predicted target, shape (batchsize,n_tiles,n_tiles,n_anchor,5+n_classes)
         """
+        # add batch dimension, if this is not already present
+        if int(tf.rank(y_true)) < 5:
+            y_pred = tf.expand_dims(y_pred, axis=0)
+            y_true = tf.expand_dims(y_true, axis=0)
+        # now the tensors y_true and y_pred should be of shape
+        # (batchsize,n_tiles,n_tiles,n_anchors,5+n_classes)
         y_shape = y_true.get_shape().as_list()
-        # number of total boxes N_total = n_tiles * n_tiles * n_anchors
-        N_total = np.prod(y_shape[-4:-1])
-        n_tiles = y_shape[-4]
-        # predicted bounding box
-        # width and height of bounding box (need to multiply by anchor widths and heights and by
-        # number of tiles to convert to units of tile width/height)
-        bbox_wh = (
-            n_tiles
-            * tf.exp(y_pred[..., 2:4])
-            * np.reshape(
-                self.anchor_wh,
-                (len(y_shape) - 2) * (1,) + (y_shape[-2], 2),
-            )
-        )
+        batchsize = y_shape[0]
+        n_tiles = y_shape[1]
+        # extract predicted bounding box width and height of bounding box (need to multiply by
+        # anchor widths and heights and by number of tiles to convert to units
+        # of tile width/height)
+        bbox_wh = n_tiles * tf.exp(y_pred[..., 2:4]) * self.anchor_wh
         bbox_pred = {
             "xc": tf.sigmoid(y_pred[..., 0]),
             "yc": tf.sigmoid(y_pred[..., 1]),
@@ -162,7 +182,8 @@ class YOLOv2Loss(keras.losses.Loss):
         # true class probabilities
         classes_true = y_true[..., 5:]
         # number of bounding boxes with objects
-        N_obj = tf.reduce_sum(confidence_true, axis=(-3, -2, -1), keepdims=True)
+        N_obj = tf.reduce_sum(confidence_true, axis=(1, 2, 3), keepdims=True)
+        # extract the bboxes of all ground truth objects
 
         # ==== 1. coordinate loss ====
         loss_coord = tf.math.divide_no_nan(confidence_true, N_obj) * (
@@ -171,13 +192,35 @@ class YOLOv2Loss(keras.losses.Loss):
             + (tf.sqrt(bbox_pred["width"]) - tf.sqrt(bbox_true["width"])) ** 2
             + (tf.sqrt(bbox_pred["height"]) - tf.sqrt(bbox_true["height"])) ** 2
         )
-        # ==== 2. object loss ====
+        # ==== 2. no-object loss ====
+        # Compute compressed tensor with true bounding boxes
+        # and reshape it to (batchsize,1,1,1,batchsize*bbox_cachesize)
+        compressed_bbox_true = self.compress_bounding_boxes(confidence_true, bbox_true)
+        threshold = 0.6
+        # noobj(i,j,k) = 1 if { confidence_true(i,j,k) = 0 AND maxIoU(i,j,k) < threshold }
+        # where maxIoU = max_{i',j',k'} IoU(bbox_true(i',j',k'),bbox_pred(i,j,k))
+        bbox_pred_extended = {
+            key: tf.expand_dims(bbox_pred[key], axis=-1) for key in bbox_pred.keys()
+        }
+        noobj = (1.0 - confidence_true) * (
+            tf.cast(
+                tf.reduce_max(
+                    self._IoU(compressed_bbox_true, bbox_pred_extended),
+                    axis=-1,
+                )
+                < threshold,
+                confidence_true.dtype,
+            )
+        )
+        N_noobj = tf.reduce_sum(noobj, axis=(1, 2, 3), keepdims=True)
+        N_conf = N_obj + N_noobj
+        loss_noobj = tf.math.divide_no_nan(noobj, N_conf) * confidence_pred**2
+        # ==== 3. object loss ====
         iou = self._IoU(bbox_true, bbox_pred)
         loss_obj = (
-            confidence_true * (confidence_pred - iou * confidence_true) ** 2 / N_total
+            tf.math.divide_no_nan(confidence_true, N_conf)
+            * (confidence_pred - iou * confidence_true) ** 2
         )
-        # ==== 3. no-object loss ====
-        loss_noobj = (1.0 - confidence_true) * confidence_pred**2 / N_total
         # ==== 4. class cross-entropy loss ====
         loss_classes = -tf.math.divide_no_nan(confidence_true, N_obj) * tf.reduce_sum(
             classes_true * tf.math.log(classes_pred), axis=-1
@@ -189,8 +232,50 @@ class YOLOv2Loss(keras.losses.Loss):
             + self.lambda_obj * loss_obj
             + self.lambda_noobj * loss_noobj
             + self.lambda_classes * loss_classes,
-            axis=[-1, -2, -3],
+            axis=(1, 2, 3),
         )
+
+    def compress_bounding_boxes(self, confidence, bbox):
+        """Construct tensor of shape (batchsize,1,1,1,batch_size*bbox_cachesize) to encode
+        __all__ true bounding boxes in an image.
+
+        This uses tf.gather_nd() and tf.scatter_nd() to scatter all values corresponding to
+        true bounding boxes into tensors of shape (batchsize,batch_size*bbox_cachesize), which
+        are then reshaped to (batchsize,1,1,1,batch_size*bbox_cachesize).
+
+        :arg confidence: confidence as a tensor of shape (batchsize,n_tiles,n_tiles,n_anchors)
+        :arg bbox: dictionary with entries 'xc', 'yc', 'width', 'height', where each entry is a
+                   tensor of shape (batchsize,n_tiles,1,1,1,n_tiles,n_anchors)
+        """
+        # work out the batch size
+        batchsize = confidence.get_shape().as_list()[0]
+        # work out the indices of all non-zero entries in the confidence tensor. This will
+        # return an array of size (nnz,4) where nnz is the number of true bounding boxes
+        indices = tf.where(confidence > 0).numpy()
+        batch_indices = indices[:, 0]  # extract the batch indices
+        nnz = len(batch_indices)  # number of nonzero bounding boxes
+        # next, construct the indices in the compressed array by assigning a consecutive list
+        # of indices to each batch index
+        compressed_indices = np.zeros((nnz, 2), dtype=np.int64)
+        for j in range(batchsize):
+            n_batch_indices = np.sum(batch_indices == j)
+            batch_j = (
+                batch_indices == j
+            )  # the set of indices belonging to a particular image
+            compressed_indices[:, 0][batch_j] = j
+            compressed_indices[:, 1][batch_j] = range(n_batch_indices)
+        # construct dictionary with compressed entries using gather_nd() and scatter_nd()
+        return {
+            key: tf.reshape(
+                tf.scatter_nd(
+                    indices=compressed_indices,
+                    updates=tf.gather_nd(bbox[key], indices=indices),
+                    shape=(batchsize, batchsize * self.bbox_cachesize),
+                ),
+                (batchsize, 1, 1, 1, batchsize * self.bbox_cachesize),
+            )
+            for key in bbox.keys()
+        }
 
     @tf.function
     def _IoU(self, bbox_1, bbox_2):

@@ -141,8 +141,8 @@ class DataGeneratorFactory(object):
         tiled_annotations = {}
         for bbox in bboxes:
             # Work out the tile that contains the bbox centre
-            tile_x = bbox["xc"] // tile_size
-            tile_y = bbox["yc"] // tile_size
+            tile_x = int(bbox["xc"] // tile_size)
+            tile_y = int(bbox["yc"] // tile_size)
             tile_id = (tile_x, tile_y)
             if tile_id in tiled_annotations.keys():
                 tiled_annotations[tile_id].append(bbox)
@@ -263,8 +263,8 @@ class DataGeneratorFactory(object):
         tiled_annotations = {}
         for bbox in bboxes:
             # Work out the tile that contains the bbox centre
-            tile_x = bbox["xc"] // tile_size
-            tile_y = bbox["yc"] // tile_size
+            tile_x = int(bbox["xc"] // tile_size)
+            tile_y = int(bbox["yc"] // tile_size)
             tile_id = (tile_x, tile_y)
             if tile_id in tiled_annotations.keys():
                 tiled_annotations[tile_id].append(bbox)

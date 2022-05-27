@@ -154,7 +154,6 @@ class YOLOv2Loss(keras.losses.Loss):
         # now the tensors y_true and y_pred should be of shape
         # (batchsize,n_tiles,n_tiles,n_anchors,5+n_classes)
         y_shape = y_true.get_shape().as_list()
-        batchsize = y_shape[0]
         n_tiles = y_shape[1]
         # extract predicted bounding box width and height of bounding box (need to multiply by
         # anchor widths and heights and by number of tiles to convert to units
@@ -194,7 +193,6 @@ class YOLOv2Loss(keras.losses.Loss):
         )
         # ==== 2. no-object loss ====
         # Compute compressed tensor with true bounding boxes
-        # and reshape it to (batchsize,1,1,1,batchsize*bbox_cachesize)
         compressed_bbox_true = self.compress_bounding_boxes(confidence_true, bbox_true)
         threshold = 0.6
         # noobj(i,j,k) = 1 if { confidence_true(i,j,k) = 0 AND maxIoU(i,j,k) < threshold }

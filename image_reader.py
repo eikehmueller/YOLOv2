@@ -141,7 +141,8 @@ class COCOImageReader(ImageReader):
         self.class_category_name_map = {j: x["name"] for j, x in enumerate(categories)}
         self.n_classes = len(self.category_class_map)
         print(f"number of classes = {self.n_classes}")
-        self.all_category_names = set([category["name"] for category in categories])
+        self.all_category_names = [category["name"] for category in categories]
+        self.all_category_names.sort()
         if verbose:
             print("COCO categories: \n{}\n".format(", ".join(self.all_category_names)))
 
@@ -154,7 +155,7 @@ class COCOImageReader(ImageReader):
         """
         # Check that categories are ok, i.e. they are a subset of all categories in the COCO dataset
         assert (category_names is None) or set(category_names).issubset(
-            self.all_category_names
+            set(self.all_category_names)
         ), "invalid category name(s)"
         if category_names is None:
             category_names = ["any"]
@@ -239,9 +240,11 @@ class PascalVOCImageReader(ImageReader):
         annotation_dir = self.data_dir + "/Annotations/"
         annotation_filenames = glob.glob(annotation_dir + "/*.xml")
         self.image_ids = list(range(len(annotation_filenames)))
-        self.all_category_names = set()
         self.annotations = []
         self.image_ids = {}
+        self.all_category_names = (
+            set()
+        )  # this wil be populated in _extract_raw_bboxes()
         for idx, filename in enumerate(annotation_filenames):
             annotation = self._extract_raw_bboxes(filename)
             self.annotations.append(annotation)
@@ -250,6 +253,8 @@ class PascalVOCImageReader(ImageReader):
                 if category_name not in self.image_ids.keys():
                     self.image_ids[category_name] = set()
                 self.image_ids[category_name].add(idx)
+        self.all_category_names = list(self.all_category_names)
+        self.all_category_names.sort()
         # Map from classes (=class indices) to category names
         self.class_category_name_map = {
             j: x for j, x in enumerate(self.all_category_names)

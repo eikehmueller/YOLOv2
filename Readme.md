@@ -100,6 +100,3 @@ conf_mask = conf_mask + true_box_conf * LAMBDA_OBJECT
 
 ## todo
 * write code structure section
-* add license
-* add linter / formatter file
-* move code to separate subdirectory

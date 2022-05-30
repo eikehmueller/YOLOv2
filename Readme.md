@@ -100,3 +100,5 @@ conf_mask = conf_mask + true_box_conf * LAMBDA_OBJECT
 * add license
 * add linter / formatter file
 * move code to separate subdirectory
+
+<img src="https://render.githubusercontent.com/render/math?math=e^{i \pi} = -1">

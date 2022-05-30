@@ -238,7 +238,7 @@ class YOLOv2Loss(keras.losses.Loss):
         __all__ true bounding boxes in an image.
 
         This uses tf.gather_nd() and tf.scatter_nd() to scatter all values corresponding to
-        true bounding boxes into tensors of shape (batchsize,batch_size*bbox_cachesize), which
+        true bounding boxes into tensors of shape (batchsize,bbox_cachesize), which
         are then reshaped to (batchsize,1,1,1,bbox_cachesize).
 
         :arg confidence: confidence as a tensor of shape (batchsize,n_tiles,n_tiles,n_anchors)
@@ -247,6 +247,10 @@ class YOLOv2Loss(keras.losses.Loss):
         """
         # Work out total number of anchor boxes
         t_shape = confidence.get_shape().as_list()
+        if t_shape[0] is None:
+            raise RuntimeError(
+                'Batchsize is undefined. You probably need to set drop_remainder="False" in dataset.batch().'
+            )
         n_tiles, n_anchor = t_shape[-3], t_shape[-1]
         n_total = n_tiles**2 * n_anchor
         # Construct mapping function

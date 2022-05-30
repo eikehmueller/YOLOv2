@@ -113,7 +113,7 @@ class COCOImageReader(ImageReader):
 
     def __init__(
         self,
-        data_dir="../../cocodata/",
+        data_dir="../../../cocodata/",
         data_type="val2017",
         image_size=416,
         n_tiles=13,
@@ -222,7 +222,7 @@ class PascalVOCImageReader(ImageReader):
 
     def __init__(
         self,
-        data_dir="../../pascalvocdata/VOC2012/",
+        data_dir="../../../pascalvocdata/VOC2012/",
         image_size=416,
         n_tiles=13,
         verbose=False,

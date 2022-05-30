@@ -1,3 +1,6 @@
+[![linting: pylint](https://img.shields.io/badge/linting-pylint-yellowgreen)](https://github.com/PyCQA/pylint)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
 # tensorflow implementation of YOLO v2
 This repository contains an implementation of YOLOv2 and is based on [Vivek Maskara's blog](https://www.maskaravivek.com/post/yolov2/), which in turn follow [Yumi's blog](https://fairyonice.github.io/Part_4_Object_Detection_with_Yolo_using_VOC_2012_data_loss.html). The backbone network is [Joseph Redmon's Darknet](https://pjreddie.com/darknet/), but in this repository it is of course implemented in tensorflow.
 
@@ -46,7 +49,7 @@ $$
 \text{loss}_{i,j}^{xywh} = \frac{\lambda_{\text{coord}}}{N_{\text{obj}}} C_{i,j}\left[\left(x_{i,j}-\hat{x}_{i,j}\right)^2+\left(y_{i,j}-\hat{y}_{i,j}\right)^2+\left(\sqrt{w_{i,j}}-\sqrt{\hat{w}_{i,j}}\right)^2+\left(\sqrt{h_{i,j}}-\sqrt{\hat{h}_{i,j}}\right)^2\right]
 $$
 
-Here $x_{i,j}$, $y_{i,j}$, $w_{i,j}$, $h_{i,j}$ are the true coordinates of the centre and width/height of the bounding box. The corresponding predicted values $\widehat{x}_{i,j}$, $\hat{y}_{i,j}$, $\hat{w}_{i,j}$, $\hat{h}_{i,j}$ are indicated with a hat. Since each term is multiplied by $C_{i,j}\in\{0,1\}$, the coordinate loss only contributes for those $i,j$ which correspond to a true bounding box.
+Here $x_{i,j}$, $y_{i,j}$, $w_{i,j}$, $h_{i,j}$ are the true coordinates of the centre and width/height of the bounding box. The corresponding predicted values $\hat{x}_{i,j}$, $\hat{y}_{i,j}$, $\hat{w}_{i,j}$, $\hat{h}_{i,j}$ are indicated with a hat. Since each term is multiplied by $C_{i,j}\in\{0,1\}$, the coordinate loss only contributes for those $i,j$ which correspond to a true bounding box.
 
 ### Classification loss
 

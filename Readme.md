@@ -2,7 +2,7 @@
 This repository contains an implementation of YOLOv2 and is based on [Vivek Maskara's blog](https://www.maskaravivek.com/post/yolov2/), which in turn follow [Yumi's blog](https://fairyonice.github.io/Part_4_Object_Detection_with_Yolo_using_VOC_2012_data_loss.html). The backbone network is [Joseph Redmon's Darknet](https://pjreddie.com/darknet/), but in this repository it is of course implemented in tensorflow.
 
 ### Loss function evaluation
-One major difference is the implementation of the computation of the term $\max_{i',j'}\left\{\text{IoU}\left(\mathcal{B}(x_{i',j'},y_{i',j'},w_{i',j'},h_{i',j'}),\mathcal{B}(\hat{x}_{i,j},\hat{y}_{i,j},\hat{w}_{i,j},\hat{h}_{i,j})\right)\right\} < 0.6$ in the loss function (see discussion below). Instead of using the trick in [Yumi's blog](https://fairyonice.github.io/Part_4_Object_Detection_with_Yolo_using_VOC_2012_data_loss.html), namely passing a tensor with all true bounding boxes through the network, this tensor is constructed when evaluating the loss function. For this, the indices of all true bounding boxes $\mathcal{B}(x_{i',j'},y_{i',j'},w_{i',j'},h_{i',j'})$ are extracted from the ground truth tensor, which has shape $M\times S \times S \times B\times(5+C)$ andused to construct a tensor of shape $M\times M\cdot N_{\text{buffer}}$ with `tf.gather_nd()` and `tf.scatter_nd()` calls. Here $M=8$ is the batchsize (I couldn't train with larger batches due to memory limitations) $S=13$ is the number of gridboxes in each direction, $B=5$ is the number of anchor boxes and $C$ is the number of classes ($C=80$ for COCO and $C=20$ for PascalVOC). $N_{\text{buffer}}$ is the size of the true anchor box buffer, and ideally this should be larger than the total number of true anchor boxes.
+One major difference is the implementation of the computation of the term $\max_{i',j'}\left\{\operatorname{IoU}\left(\mathcal{B}(x_{i',j'},y_{i',j'},w_{i',j'},h_{i',j'}),\mathcal{B}(\hat{x}_{i,j},\hat{y}_{i,j},\hat{w}_{i,j},\hat{h}_{i,j})\right)\right\} < 0.6$ in the loss function (see discussion below). Instead of using the trick in [Yumi's blog](https://fairyonice.github.io/Part_4_Object_Detection_with_Yolo_using_VOC_2012_data_loss.html), namely passing a tensor with all true bounding boxes through the network, this tensor is constructed when evaluating the loss function. For this, the indices of all true bounding boxes $\mathcal{B}(x_{i',j'},y_{i',j'},w_{i',j'},h_{i',j'})$ are extracted from the ground truth tensor, which has shape $M\times S \times S \times B\times(5+C)$ andused to construct a tensor of shape $M\times M\cdot N_{\text{buffer}}$ with `tf.gather_nd()` and `tf.scatter_nd()` calls. Here $M=8$ is the batchsize (I couldn't train with larger batches due to memory limitations) $S=13$ is the number of gridboxes in each direction, $B=5$ is the number of anchor boxes and $C$ is the number of classes ($C=80$ for COCO and $C=20$ for PascalVOC). $N_{\text{buffer}}$ is the size of the true anchor box buffer, and ideally this should be larger than the total number of true anchor boxes.
 
 ### Weights
 Joseph Redmon's [weights for Darknet](https://pjreddie.com/darknet/yolo/) can be downloaded with
@@ -46,7 +46,7 @@ $$
 \text{loss}_{i,j}^{xywh} = \frac{\lambda_{\text{coord}}}{N_{\text{obj}}} C_{i,j}\left[\left(x_{i,j}-\hat{x}_{i,j}\right)^2+\left(y_{i,j}-\hat{y}_{i,j}\right)^2+\left(\sqrt{w_{i,j}}-\sqrt{\hat{w}_{i,j}}\right)^2+\left(\sqrt{h_{i,j}}-\sqrt{\hat{h}_{i,j}}\right)^2\right]
 $$
 
-Here $x_{i,j}, y_{i,j}, w_{i,j}, h_{i,j}$ are the true coordinates of the centre and width/height of the bounding box. The corresponding predicted values $\hat{x}_{i,j}, \hat{y}_{i,j}, \hat{w}_{i,j}, \hat{h}_{i,j}$ are indicated with a hat. Since each term is multiplied by $C_{i,j}\in\{0,1\}$, the coordinate loss only contributes for those $i,j$ which correspond to a true bounding box.
+Here $x_{i,j}$, $y_{i,j}$, $w_{i,j}$, $h_{i,j}$ are the true coordinates of the centre and width/height of the bounding box. The corresponding predicted values $\hat{x}_{i,j}$, $\hat{y}_{i,j}$, $\hat{w}_{i,j}$, $\hat{h}_{i,j}$ are indicated with a hat. Since each term is multiplied by $C_{i,j}\in\{0,1\}$, the coordinate loss only contributes for those $i,j$ which correspond to a true bounding box.
 
 ### Classification loss
 
@@ -100,5 +100,3 @@ conf_mask = conf_mask + true_box_conf * LAMBDA_OBJECT
 * add license
 * add linter / formatter file
 * move code to separate subdirectory
-
-<img src="https://render.githubusercontent.com/render/math?math=e^{i \pi} = -1">

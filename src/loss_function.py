@@ -62,7 +62,7 @@ class YOLOv2Loss(keras.losses.Loss):
         lambda_obj=5.0,
         lambda_noobj=1.0,
         lambda_classes=1.0,
-        bbox_cachesize=16,
+        bbox_cachesize=4,
     ):
         super().__init__()
         # Extract widths and heights of anchor boxes into numpy arrays
@@ -148,13 +148,13 @@ class YOLOv2Loss(keras.losses.Loss):
         :arg y_pred: predicted target, shape (batchsize,n_tiles,n_tiles,n_anchor,5+n_classes)
         """
         # add batch dimension, if this is not already present
-        if int(tf.rank(y_true)) < 5:
+        y_shape = y_true.get_shape().as_list()
+        n_tiles = y_shape[-4]
+        if len(tf.shape(y_true)) < 5:
             y_pred = tf.expand_dims(y_pred, axis=0)
             y_true = tf.expand_dims(y_true, axis=0)
         # now the tensors y_true and y_pred should be of shape
         # (batchsize,n_tiles,n_tiles,n_anchors,5+n_classes)
-        y_shape = y_true.get_shape().as_list()
-        n_tiles = y_shape[1]
         # extract predicted bounding box width and height of bounding box (need to multiply by
         # anchor widths and heights and by number of tiles to convert to units
         # of tile width/height)
@@ -234,46 +234,57 @@ class YOLOv2Loss(keras.losses.Loss):
         )
 
     def compress_bounding_boxes(self, confidence, bbox):
-        """Construct tensor of shape (batchsize,1,1,1,batch_size*bbox_cachesize) to encode
+        """Construct tensor of shape (batchsize,1,1,1,bbox_cachesize) to encode
         __all__ true bounding boxes in an image.
 
         This uses tf.gather_nd() and tf.scatter_nd() to scatter all values corresponding to
         true bounding boxes into tensors of shape (batchsize,batch_size*bbox_cachesize), which
-        are then reshaped to (batchsize,1,1,1,batch_size*bbox_cachesize).
+        are then reshaped to (batchsize,1,1,1,bbox_cachesize).
 
         :arg confidence: confidence as a tensor of shape (batchsize,n_tiles,n_tiles,n_anchors)
         :arg bbox: dictionary with entries 'xc', 'yc', 'width', 'height', where each entry is a
                    tensor of shape (batchsize,n_tiles,1,1,1,n_tiles,n_anchors)
         """
-        # work out the batch size
-        batchsize = confidence.get_shape().as_list()[0]
-        # work out the indices of all non-zero entries in the confidence tensor. This will
-        # return an array of size (nnz,4) where nnz is the number of true bounding boxes
-        indices = tf.where(confidence > 0).numpy()
-        batch_indices = indices[:, 0]  # extract the batch indices
-        nnz = len(batch_indices)  # number of nonzero bounding boxes
-        # next, construct the indices in the compressed array by assigning a consecutive list
-        # of indices to each batch index
-        compressed_indices = np.zeros((nnz, 2), dtype=np.int64)
-        for j in range(batchsize):
-            n_batch_indices = np.sum(batch_indices == j)
-            batch_j = (
-                batch_indices == j
-            )  # the set of indices belonging to a particular image
-            compressed_indices[:, 0][batch_j] = j
-            compressed_indices[:, 1][batch_j] = range(n_batch_indices)
-        # construct dictionary with compressed entries using gather_nd() and scatter_nd()
-        return {
-            key: tf.reshape(
-                tf.scatter_nd(
-                    indices=compressed_indices,
-                    updates=tf.gather_nd(bbox[key], indices=indices),
-                    shape=(batchsize, batchsize * self.bbox_cachesize),
-                ),
-                (batchsize, 1, 1, 1, batchsize * self.bbox_cachesize),
+        # Work out total number of anchor boxes
+        t_shape = confidence.get_shape().as_list()
+        n_tiles, n_anchor = t_shape[-3], t_shape[-1]
+        n_total = n_tiles**2 * n_anchor
+        # Construct mapping function
+        progression = tf.constant(np.arange(1, n_total + 1), dtype=confidence.dtype)
+        # List of flattened confidence masks (one mask per image)
+        confidence_flat = [tf.reshape(x, [n_total]) for x in tf.unstack(confidence)]
+        # Each entry in masked_progression corresponds to a single image
+        # if image j contains n objects, then masked_progression[j] is a tensor of length
+        # n_total = n_tiles^2 * n_anchor which looks like this:
+        # [1 2 3 ... n 0 0 ... 0 0], i.e. the first entries form an arithmetic progression from
+        # 1 to n and the remaining entries are zero
+        masked_progression = [
+            tf.cast(
+                tf.sort(x, direction="DESCENDING") * progression,
+                dtype=tf.int32,
             )
-            for key in bbox.keys()
+            for x in confidence_flat
+        ]
+        # Now use this to create the dictionaries containing re-shaped tensors
+        r = {
+            key: tf.stack(
+                [
+                    tf.reshape(
+                        tf.scatter_nd(
+                            tf.expand_dims(x[x > 0], axis=-1),
+                            tf.reshape(z, [n_total])[y > 0],
+                            [self.bbox_cachesize + 1],
+                        )[1:],
+                        (1, 1, 1, self.bbox_cachesize),
+                    )
+                    for x, y, z in zip(
+                        masked_progression, confidence_flat, tf.unstack(value)
+                    )
+                ]
+            )
+            for key, value in bbox.items()
         }
+        return r
 
     @tf.function
     def _IoU(self, bbox_1, bbox_2):

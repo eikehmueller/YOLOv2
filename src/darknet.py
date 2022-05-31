@@ -116,18 +116,8 @@ class Darknet19(object):
         output_layer = keras.layers.Reshape(
             (self.grid_size, self.grid_size, self.n_anchor, 4 + 1 + self.n_classes)
         )(x)
-        use_true_box_buffer = False
-        if use_true_box_buffer:
-            true_boxes = keras.layers.Input(shape=(1, 1, 1, self.true_box_buffer, 4))
-            inputs = [input, true_boxes]
-            outputs = keras.layers.Lambda(lambda args: args[0])(
-                [output_layer, true_boxes]
-            )
-        else:
-            inputs = input_image
-            outputs = output_layer
         # Build model
-        self.__model = keras.Model(inputs=inputs, outputs=outputs)
+        self.__model = keras.Model(inputs=input_image, outputs=output_layer)
 
     def _set_weights(self, weight_file):
         """Read weights from disk and set weights of final convolutional to random values.

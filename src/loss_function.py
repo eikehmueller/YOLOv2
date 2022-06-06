@@ -45,6 +45,8 @@ class YOLOv2Loss(keras.losses.Loss):
 
     Further, N_{conf} = sum_{i,j,k} C^{(noobj)}_{i,j,k}.
 
+    :arg reduction: ignored but required by parent constructor
+    :arg name: optional name of loss
     :arg anchor_boxes: coordinates of anchor boxes
     :arg lambda_coord: scaling factor for coordinate loss
     :arg lambda_obj: scaling factor for object loss
@@ -57,15 +59,19 @@ class YOLOv2Loss(keras.losses.Loss):
 
     def __init__(
         self,
-        anchor_boxes,
+        reduction=keras.losses.Reduction.AUTO,
+        name=None,
+        anchor_boxes=None,
         lambda_coord=1.0,
         lambda_obj=5.0,
         lambda_noobj=1.0,
         lambda_classes=1.0,
         bbox_cachesize=4,
     ):
-        super().__init__()
+        super().__init__(reduction, name)
         # Extract widths and heights of anchor boxes into numpy arrays
+        assert anchor_boxes is not None  # need at least one anchor box
+        self.anchor_boxes = anchor_boxes
         n_anchors = len(anchor_boxes)
         self.anchor_wh = np.reshape(
             np.asarray(
@@ -81,6 +87,40 @@ class YOLOv2Loss(keras.losses.Loss):
         self.lambda_noobj = lambda_noobj
         self.lambda_classes = lambda_classes
         self.bbox_cachesize = bbox_cachesize
+
+    def get_config(self):
+        """Extract configuration of instance
+
+        This method is required to load/save models with this loss function"""
+        config = {
+            "anchor_boxes": self.anchor_boxes,
+            "lambda_coord": self.lambda_coord,
+            "lambda_obj": self.lambda_obj,
+            "lambda_noobj": self.lambda_noobj,
+            "lambda_classes": self.lambda_classes,
+            "bbox_cachesize": self.bbox_cachesize,
+        }
+        base_config = super(YOLOv2Loss, self).get_config()
+        return {**base_config, **config}
+
+    @classmethod
+    def from_config(cls, config):
+        """Reconstruct instance from configuration
+
+        This method is required to load/save models with this loss function
+
+        :arg config: dictionary with configuration
+        """
+        return cls(
+            config["reduction"],
+            config["name"],
+            config["anchor_boxes"],
+            config["lambda_coord"],
+            config["lambda_obj"],
+            config["lambda_noobj"],
+            config["lambda_classes"],
+            config["bbox_cachesize"],
+        )
 
     def call(self, y_true, y_pred):
         """Evaluate loss function

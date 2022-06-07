@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import glob
+import os
 import xml.etree.ElementTree as ET
 from pycocotools.coco import COCO
 import numpy as np
@@ -258,6 +259,7 @@ class PascalVOCImageReader(ImageReader):
     def __init__(
         self,
         data_dir="../../../pascalvocdata/VOC2012/",
+        data_type="train",
         image_size=416,
         n_tiles=13,
         verbose=False,
@@ -266,14 +268,25 @@ class PascalVOCImageReader(ImageReader):
 
         :arg data_dir: directory containing the data. This is assumed to contain the
                        subdirectories /Annotations and /JPEGImages
+        :arg data_type: type of data to read ('train', 'val' or 'test')
         :arg image_size: size of resized images
         :arg n_tiles: number of tiles each dimension is subdivided into
         :arg verbose: print additional information
         """
         super().__init__(image_size, n_tiles)
         self.data_dir = data_dir
+        assert data_type in ("train", "val", "test")
+        self.data_type = data_type
         annotation_dir = self.data_dir + "/Annotations/"
-        annotation_filenames = glob.glob(annotation_dir + "/*.xml")
+        with open(f"pascalvocsplit_{self.data_type}.txt", "r", encoding="utf8") as f:
+            image_names = [x.strip() for x in f.readlines()]
+        annotation_filenames = list(
+            filter(
+                lambda x: os.path.basename(x)[:-4] in image_names,
+                glob.glob(annotation_dir + "/*.xml"),
+            )
+        )
+
         self.image_ids = list(range(len(annotation_filenames)))
         self.annotations = []
         self.image_ids = {}
@@ -288,7 +301,29 @@ class PascalVOCImageReader(ImageReader):
                 if category_name not in self.image_ids.keys():
                     self.image_ids[category_name] = set()
                 self.image_ids[category_name].add(idx)
-        self.all_category_names = list(self.all_category_names)
+
+        self.all_category_names = [
+            "aeroplane",
+            "bicycle",
+            "bird",
+            "boat",
+            "bottle",
+            "bus",
+            "car",
+            "cat",
+            "chair",
+            "cow",
+            "diningtable",
+            "dog",
+            "horse",
+            "motorbike",
+            "person",
+            "pottedplant",
+            "sheep",
+            "sofa",
+            "train",
+            "tvmonitor",
+        ]
         self.all_category_names.sort()
         # Map from classes (=class indices) to category names
         self.class_category_name_map = {
@@ -325,7 +360,6 @@ class PascalVOCImageReader(ImageReader):
         for node_object in root.iter("object"):
             bbox = {}
             category_name = node_object.find("name").text
-            self.all_category_names.add(category_name)
             bbox["category_name"] = category_name
             for node_bbox in node_object.find("bndbox"):
                 bbox[node_bbox.tag] = int(float(node_bbox.text))

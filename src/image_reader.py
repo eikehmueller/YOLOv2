@@ -278,7 +278,8 @@ class PascalVOCImageReader(ImageReader):
         assert data_type in ("train", "val", "test")
         self.data_type = data_type
         annotation_dir = self.data_dir + "/Annotations/"
-        with open(f"pascalvocsplit_{self.data_type}.txt", "r", encoding="utf8") as f:
+        split_filename = "./data/" + f"pascalvocsplit_{self.data_type}.txt"
+        with open(split_filename, "r", encoding="utf8") as f:
             image_names = [x.strip() for x in f.readlines()]
         annotation_filenames = list(
             filter(

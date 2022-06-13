@@ -268,7 +268,7 @@ class PascalVOCImageReader(ImageReader):
 
         :arg data_dir: directory containing the data. This is assumed to contain the
                        subdirectories /Annotations and /JPEGImages
-        :arg data_type: type of data to read ('train', 'val' or 'test')
+        :arg data_type: type of data to read ('train' or 'val')
         :arg image_size: size of resized images
         :arg n_tiles: number of tiles each dimension is subdivided into
         :arg verbose: print additional information
@@ -278,7 +278,8 @@ class PascalVOCImageReader(ImageReader):
         assert data_type in ("train", "val", "test")
         self.data_type = data_type
         annotation_dir = self.data_dir + "/Annotations/"
-        split_filename = "./data/" + f"pascalvocsplit_{self.data_type}.txt"
+        split_dir = self.data_dir + "/ImageSets/Main/"
+        split_filename = split_dir + f"/{self.data_type}.txt"
         with open(split_filename, "r", encoding="utf8") as f:
             image_names = [x.strip() for x in f.readlines()]
         annotation_filenames = list(

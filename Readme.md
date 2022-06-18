@@ -30,6 +30,9 @@ The anchor boxes are generated with k-means clustering, as described in the pape
 ## Datasets
 The code can process images from the [COCO](https://cocodataset.org/#home) and [PascalVOC](https://cocodataset.org/#home) datasets. I used the 2017 train/val data from COCO and the VOC2012 data. The relevant classes `COCOImageReader` and `PascalVOCImageReader` are implemented in `image_reader.py`
 
+## Example detection
+![Sample detection](detection.png)
+
 ## Code structure
 
 ## References

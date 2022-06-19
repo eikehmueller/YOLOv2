@@ -43,9 +43,9 @@ The code can process images from the [COCO](https://cocodataset.org/#home) and [
 
 ## Results
 Loss history from training on the entire `trainval` PascalVOC 2012 dataset, validating on the `val` subset.
-![Loss history](loss_history.png)
+![Loss history](figures/loss_history.png)
 The following image shows an example detecting. Predicted bounding boxes are shown in cyan, the ground truth is shown in yellow.
-![Sample detection](detection.png)
+![Sample detection](figures/detection.png)
 
 
 ## References

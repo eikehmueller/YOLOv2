@@ -23,6 +23,10 @@ When training with the [training notebook](src/TrainModel.ipynb), darknet is ini
 ### Anchor box generation
 The anchor boxes are generated with k-means clustering, as described in [the YOLO9000 paper]((https://arxiv.org/abs/1612.08242)). This is done for both the PascalVOC and for the COCO datasets in [this notebook](src/GenerateAnchorBoxes.ipynb). The results are stored in the json files `anchor_boxes_coco.json` and `anchor_boxes_pascalvoc.json`.
 
+The following figure shows the anchor boxes for the COCO (left) and PascalVOC (right) datasets.
+
+![Anchor boxes](figures/anchor_boxes.png)
+
 ## Code structure
 All code is contained in the `src` subdirectory. The following notebooks implement the high-level algorithms:
 * [GenerateAnchorBoxes.ipynb](src/GenerateAnchorBoxes.ipynb): Generate anchor boxes for YOLOv2 model, both for the COCO and the PascalVOC dataset.
@@ -43,8 +47,11 @@ The code can process images from the [COCO](https://cocodataset.org/#home) and [
 
 ## Results
 Loss history from training on the entire `trainval` PascalVOC 2012 dataset, validating on the `val` subset.
+
 ![Loss history](figures/loss_history.png)
+
 The following image shows an example detecting. Predicted bounding boxes are shown in cyan, the ground truth is shown in yellow.
+
 ![Sample detection](figures/detection.png)
 
 
